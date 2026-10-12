@@ -1,0 +1,95 @@
+# Declared sensor corruption models (sensor_models.py). Applied to the
+# hidden plant's clean states to produce the estimator-visible signals.
+# All signals are direct simulated electrical interfaces (Section 3):
+# no OBD-II parameter or CAN diagnostic PID is modeled or consumed anywhere
+# in this repository.
+
+rpm:
+  unit: rpm
+  range: [0, 7000]
+  noise_std: 8.0
+  quantization_step: 1.0          # crank-timer-derived RPM, fine resolution
+  bias: 0.0
+  gain_drift_per_hour: 0.0
+  lag_s: 0.01
+  dropout_rate_per_s: 0.0
+  stuck_rate_per_s: 0.0
+
+map:
+  unit: kpa
+  range: [10, 110]
+  noise_std: 0.6
+  quantization_step: 0.2
+  bias_kpa: 0.3                   # small declared offset mismatch source
+  gain_drift_per_hour: 0.001      # fractional gain drift
+  lag_s: 0.03
+  dropout_rate_per_s: 0.0005
+  stuck_rate_per_s: 0.0002
+
+tps:
+  unit: pct
+  range: [0, 100]
+  noise_std: 0.4
+  quantization_step: 0.1
+  bias: 0.0
+  gain_drift_per_hour: 0.0
+  lag_s: 0.015
+  dropout_rate_per_s: 0.0002
+  stuck_rate_per_s: 0.0001
+
+iat:
+  unit: celsius
+  range: [-20, 90]
+  noise_std: 0.3
+  quantization_step: 0.5
+  bias: 0.5
+  gain_drift_per_hour: 0.0
+  lag_s: 1.0                      # thermistor thermal lag
+  dropout_rate_per_s: 0.0002
+  stuck_rate_per_s: 0.0002
+
+ect:
+  unit: celsius
+  range: [-20, 130]
+  noise_std: 0.3
+  quantization_step: 0.5
+  bias: -0.5
+  gain_drift_per_hour: 0.0
+  lag_s: 2.0
+  dropout_rate_per_s: 0.0002
+  stuck_rate_per_s: 0.0002
+
+lambda:
+  unit: ratio
+  range: [0.60, 1.60]
+  noise_std: 0.01
+  quantization_step: 0.001
+  bias: 0.0
+  gain_drift_per_hour: 0.0005
+  lag_s: 0.0                      # transport/sensor delay handled explicitly
+                                   # in fuel_lambda_path.py (delay chain),
+                                   # not as a simple first-order lag here
+  dropout_rate_per_s: 0.001
+  stuck_rate_per_s: 0.0005
+  # Exhaust temperature is not a simulated state in Article 1.  Use this
+  # explicit ECT proxy threshold instead of the former undocumented /10 rule.
+  light_off_ect_proxy_c: 60.0
+
+battery_v:
+  unit: volts
+  range: [9.0, 15.5]
+  noise_std: 0.05
+  quantization_step: 0.01
+  bias: 0.0
+  nominal_v: 13.8
+  dropout_rate_per_s: 0.0
+  stuck_rate_per_s: 0.0
+
+injector_pw:
+  unit: ms
+  range: [0.0, 20.0]
+  noise_std: 0.02
+  quantization_step: 0.004        # ECU driver timer resolution
+  bias: 0.0
+  dropout_rate_per_s: 0.0
+  stuck_rate_per_s: 0.0

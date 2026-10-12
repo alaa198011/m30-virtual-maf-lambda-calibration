@@ -1,0 +1,97 @@
+# Experimental program (Section 11), primary endpoint and statistical plan
+# (Section 12). Frozen before final-test inspection.
+
+seeds: [1, 2, 3, 4, 5]
+
+primary_endpoint:
+  name: post_mismatch_airflow_nrmse_final_test
+  metric: nrmse
+  evaluated_on: final_test_trajectory_untouched
+  absolute_target: 0.12                 # frozen NRMSE target (dimensionless, /range)
+  min_improvement_margin_over_C0: 0.10   # C3 must beat C0 by >=10% relative NRMSE
+  require_zero_bound_violations: true
+  require_lower_false_update_rate_than: C1
+  frozen_before_final_test: true
+  normalization_airflow_range_g_s: 260.0
+
+secondary_metrics:
+  - mae_g_s
+  - signed_bias_g_s
+  - p95_abs_error_g_s
+  - adaptation_time_s
+  - accepted_calibration_samples
+  - rejected_updates
+  - false_update_rate
+  - rollback_count
+  - missed_update_rate
+  - transient_integrated_abs_error
+  - pseudo_reference_quality_r2
+  - paired_C3_minus_C5_nrmse
+
+experiments:
+  E1_nominal_global_accuracy:
+    models: [physics_only, pure_ai, residual_ai]
+    data_scenarios: [nominal_test]
+    metrics: [mae_g_s, nrmse, signed_bias_g_s, p95_abs_error_g_s]
+    aggregate: run_level_with_ci
+  E2_boundary_corner_robustness:
+    models: [physics_only, pure_ai, residual_ai]
+    data_scenarios: [boundary, corner]
+    report_each_condition_separately: true
+  E3_transient_response:
+    models: [physics_only, pure_ai, residual_ai]
+    data_scenarios: [transient_unseen]
+    metrics: [integrated_abs_error, rise_error, peak_error, lag_s, state_specific]
+    states: [idle, tip_in, acceleration, cruise, high_load, tip_out, deceleration]
+  E4_plant_mismatch_crossover:
+    models: [physics_only, pure_ai, residual_ai]
+    data_scenarios: [nominal_test, mismatch_low, mismatch_high, mismatch_map_gain, mismatch_manifold_tau]
+    output: mismatch_crossover.csv
+  E5_calibration_policy_ablation:
+    modes: [C0, C1, C2, C3, C4, C5]
+    data_scenarios: [calibration_shift_threshold, calibration_shift_test]
+    metrics:
+      - post_adaptation_final_test_error
+      - acceptance_window_false_update_rate
+      - rollback_count
+      - accepted_updates
+      - parameter_trajectory
+      - pseudo_reference_quality
+      - scalar_fisher_score_vs_threshold
+    output: [calibration_events.csv, scalar_fisher_trace.csv]
+  E6_informative_data_efficiency:
+    modes: [C3]
+    accepted_sample_grid: [30, 60, 120, 240, 480, 960]
+    sample_definition: cumulative_stage_a_valid_samples_seen_by_C3
+    metric: median_holdout_nrmse_with_ci
+    output: calibration_data_efficiency.csv
+  E7_output_software_feasibility:
+    profile: configs/output_profiles.yaml#voltage_profile
+    metrics:
+      - transfer_function_error
+      - monotonicity_violations
+      - saturation_events
+      - slew_rate_error
+      - parameter_count
+      - model_bytes
+      - mac_estimate
+    host_timing_label: "host_timing_only_not_mcu_timing"
+    output: legacy_output_metrics.csv
+
+statistics:
+  aggregation_level: run          # never raw time samples treated as i.i.d.
+  paired: true
+  normality_test: shapiro
+  parametric_test: paired_t
+  nonparametric_test: wilcoxon_signed_rank
+  multiple_comparison_correction: holm
+  confidence_level: 0.95
+  bootstrap_resamples: 5000
+  comparisons:
+    - [residual_ai, physics_only]
+    - [residual_ai, pure_ai]
+    - [C3, C0]
+    - [C3, C2]
+    - [C3, C5]
+    - [C3, C1]
+  output: statistical_tests.csv

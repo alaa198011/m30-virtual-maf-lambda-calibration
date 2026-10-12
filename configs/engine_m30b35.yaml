@@ -1,0 +1,47 @@
+# BMW M30B35 virtual engine — declared assumptions for the ESTIMATOR side
+# (the physics baseline used by physics_model.py / train_residual_ai.py).
+# The hidden plant (virtual_engine.py) uses a DIFFERENT, structurally
+# distinct VE surface — see mismatch.* below and configs/data_generation.yaml.
+#
+# M30B35 = BMW straight-six, SOHC, 2 valves/cylinder, 3.4S naturally aspirated.
+engine:
+  name: "BMW M30B35"
+  cylinders: 6
+  displacement_l: 3.430           # litres, declared nominal displacement
+  displacement_m3: 3.430e-3
+  bore_mm: 92.0
+  stroke_mm: 86.0
+  stroke_cycle: 4                 # four-stroke: intake event every 2 crank rev
+  idle_rpm: 700
+  redline_rpm: 6300
+  rpm_min: 500
+  rpm_max: 6500
+
+constants:
+  R_air_J_per_kgK: 287.05         # specific gas constant for dry air
+  atmospheric_kpa: 101.325
+  stoich_afr_gasoline: 14.7       # stoichiometric air-fuel ratio (mass basis)
+
+# Assumed (baseline) volumetric-efficiency surface used by the ESTIMATOR.
+# Bilinear interpolation over (rpm, map_kpa) breakpoints. This is
+# intentionally a smooth, low-order approximation — the hidden plant VE
+# surface (configs/data_generation.yaml -> plant.ve_surface) differs in
+# shape and peak location, per roadmap Section 6 ("Required plant modules").
+ve_baseline:
+  rpm_breakpoints:   [700, 1500, 2500, 3500, 4500, 5500, 6300]
+  map_breakpoints_kpa: [30, 50, 70, 90, 101.325]
+  # rows = rpm breakpoints, cols = map breakpoints, values = eta_v (0-1)
+  table:
+    - [0.42, 0.50, 0.55, 0.58, 0.60]
+    - [0.48, 0.58, 0.66, 0.71, 0.74]
+    - [0.50, 0.62, 0.72, 0.79, 0.83]
+    - [0.49, 0.63, 0.75, 0.83, 0.88]
+    - [0.46, 0.60, 0.74, 0.84, 0.90]
+    - [0.43, 0.56, 0.70, 0.81, 0.88]
+    - [0.39, 0.51, 0.65, 0.76, 0.84]
+
+bounded_fallback:
+  # Absolute physical sanity clamp applied to the speed-density estimate
+  # (Section 5: "bounded fallback"). Not a calibration parameter.
+  min_airflow_g_s: 0.5
+  max_airflow_g_s: 260.0

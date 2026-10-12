@@ -1,0 +1,111 @@
+# Calibration parameterization and four-stage gate (Sections 9-10).
+# THESE VALUES ARE FROZEN BEFORE THE C0-C5 EXPERIMENTS AND BEFORE FINAL
+# TEST INSPECTION (Section 13). Do not edit after inspecting final-test
+# results; see README "Acceptance gates before publication".
+
+parameterization:
+  kind: global_scale            # Section 9: "Use a global scale as the default"
+  initial_value: 1.0
+  bounds: [0.80, 1.20]           # absolute bounds on s
+  per_update_limit: 0.02          # max |delta s| per accepted update
+  rate_limit_per_s: 0.01          # max |ds/dt|
+  deadband: 0.002                 # proposals smaller than this are dropped
+  ablation_scale_plus_bias:
+    enabled: false                # Section 9: ablation-only, off by default
+    bias_bounds_g_s: [-3.0, 3.0]
+
+windows:
+  proposal_window_s: 8.0
+  acceptance_window_s: 8.0
+  min_gap_proposal_to_acceptance_s: 0.0   # strictly subsequent, zero gap allowed
+  final_test_untouched: true
+
+# Stage A: operational validity
+stage_a_validity:
+  min_ect_c: 60.0                 # "engine warm enough"
+  require_lambda_valid: true
+  block_on_fuel_cut: true
+  block_on_enrichment: true
+  block_on_cold_start: true
+  block_on_injector_saturation: true
+  block_on_misfire: true
+  block_on_dropout: true
+  block_on_fault_code: true
+  max_abs_tps_rate_pct_per_s: 400.0   # "severe transient" cutoff
+
+# Stage B: scalar Fisher-information gate (Section 9, primary implementation contract)
+stage_b_information:
+  information_metric: scalar_fisher      # NO alternative metric selector permitted
+  valid_samples_per_window: 60           # frozen N (Stage-A-valid samples per window)
+  pseudo_reference_variance_source: declared_plant_config   # or 'validation_estimate'
+  pseudo_reference_variance_value: 0.64  # (g/s)^2, declared sigma^2_pseudo
+  # Frozen I_s,min. Calibrated so that sustained idle / low-load conditions
+  # (small base-airflow phi_k, hence small phi_k^2/sigma2_pseudo per sample)
+  # stay below threshold even after accumulating N valid samples, while
+  # normal driving (larger phi_k) clears it comfortably -- see
+  # tests/test_fisher_gate.py for the numeric justification.
+  scalar_fisher_threshold: 10000.0       # frozen I_s,min; RMS phi threshold ~=10.3 g/s
+  reset_on_invalid_sample: true          # information must be temporally contiguous
+  # descriptive-only diagnostics (Section 9): NOT used to gate updates
+  descriptive_diagnostics: [rpm_map_coverage]
+
+# Stage C: bounded proposal (uses parameterization.* above) + filtering
+stage_c_proposal:
+  ema_filter_alpha: 0.3
+
+# Stage D: causal acceptance
+stage_d_acceptance:
+  loss: delay_consistent_pseudo_reference_mse   # options: pseudo_reference_mse |
+                                                  # lambda_error | fuel_normalized_lambda_error | combined
+  min_relative_improvement: 0.02   # candidate must beat last-known-good loss by >=2%
+  rollback_on_reject: true
+
+# False-accepted-update definition (Section 10) — offline labelling ONLY,
+# hidden airflow never available to proposal/calibration/acceptance logic.
+false_update_labelling:
+  hidden_airflow_error_tolerance_g_s: 1.5
+  applies_to_window: acceptance   # never final-test (reported separately)
+
+modes:
+  # Matched ablation modes (Section 10). C3 is the proposed method.
+  C0:
+    label: "No calibration (frozen residual-AI)"
+    stage_a: false
+    stage_b: false
+    stage_d: false
+    deployable: true
+  C1:
+    label: "Ungated adaptation (accept every bounded proposal)"
+    stage_a: false
+    stage_b: false
+    stage_d: false
+    always_accept: true
+    deployable: true
+  C2:
+    label: "Validity-only gating (Stage A, no Fisher gate, no accept test)"
+    stage_a: true
+    stage_b: false
+    stage_d: false
+    always_accept: true
+    deployable: true
+  C3:
+    label: "Proposed: validity + scalar Fisher gate + causal accept/rollback"
+    stage_a: true
+    stage_b: true
+    stage_d: true
+    deployable: true
+  C4:
+    label: "Oracle upper bound (uses hidden clean airflow as feedback) -- NON-DEPLOYABLE"
+    stage_a: true
+    stage_b: false
+    stage_d: true
+    uses_hidden_oracle_feedback: true
+    deployable: false
+  C5:
+    label: "Matched one-state RLS comparator (classical_rls.py)"
+    estimator: classical_rls
+    forgetting_factor: 0.985
+    deployable: true
+
+primary_comparison: [C3, C0, C2, C5]
+upper_bound_reference: C4

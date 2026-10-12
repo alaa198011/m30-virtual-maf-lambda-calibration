@@ -1,0 +1,36 @@
+# Physics-informed residual-AI estimator (Section 9): physics estimate +
+# compact residual MLP. Same frozen deployed feature list as Pure-AI; the
+# physics baseline (not a feature) anchors the residual target.
+model:
+  name: residual_ai
+  features: [rpm, map_kpa, tps_pct, iat_c, ect_c]
+  physics_anchor: maf_physics_g_s   # computed on the fly, not a stored feature at inference
+  target: maf_reference_g_s
+  correction_form: additive         # frozen, see configs/model_physics.yaml
+
+architecture:
+  hidden_layer_sizes: [16, 16, 8]
+  activation: relu
+  solver: adam
+  alpha: 1.0e-4
+  learning_rate_init: 5.0e-3
+  max_iter: 400
+  early_stopping: true
+  n_iter_no_change: 15
+  validation_fraction: 0.15
+  batch_size: 256
+
+training:
+  seeds: [1, 2, 3, 4, 5]
+  normalization: standard
+  train_split_roles: [train]
+  val_split_roles: [val]
+  residual_target_clip_g_s: [-40.0, 40.0]   # sanity clip on training residual target
+
+resource_budget:
+  # Section 9 "frozen resource budget" / Section 14 legacy-output feasibility.
+  # A 5-16-16-8-1 MLP has exactly 513 parameters (5*16+16 + 16*16+16 +
+  # 16*8+8 + 8*1+1); budget set with headroom above that exact count.
+  max_parameters: 600
+  max_model_bytes: 4096
+  max_macs_per_inference: 600

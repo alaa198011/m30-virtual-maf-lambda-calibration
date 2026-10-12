@@ -1,0 +1,21 @@
+# Physics-only baseline model configuration (Section 9: "Physics-only
+# model: speed-density airflow with declared VE map and bounded fallback").
+model:
+  name: physics_only
+  uses_ve_table: true
+  ve_table_source: configs/engine_m30b35.yaml#ve_baseline
+  bounded_fallback_source: configs/engine_m30b35.yaml#bounded_fallback
+
+correction_form:
+  # Section 5: "The selected form must be frozen before final evaluation."
+  # additive:       maf_hat = maf_physics + delta
+  # multiplicative: maf_hat = maf_physics * s  (s bounded)
+  # FROZEN CHOICE for Article 1:
+  residual_ai_form: additive          # used by train_residual_ai.py
+  calibration_form: multiplicative    # used by calibration_gate.py / online_calibration.py
+  # Relationship (documented per Section 5 requirement): the residual-AI
+  # additive correction is learned OFFLINE on frozen training data and then
+  # frozen; the bounded multiplicative scale s is the ONLY parameter
+  # adapted ONLINE post-freeze. They compose as:
+  #   maf_hat(t) = s(t) * ( maf_physics(t) + residual_ai(t) )
+  # i.e. the online calibration scales the already-corrected estimate.

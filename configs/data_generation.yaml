@@ -1,0 +1,200 @@
+# Dataset generation plan (Section 8). Declares the hidden plant's own
+# parameters (structurally different from the estimator baseline in
+# configs/engine_m30b35.yaml) and the run/scenario catalog.
+
+sampling:
+  dt_s: 0.02                      # 50 Hz plant + sensor loop
+  seed_base: 20260925              # date-derived base seed, offset per run
+
+schema_columns:
+  - timestamp_s
+  - run_id
+  - seed
+  - scenario
+  - state
+  - rpm
+  - map_kpa
+  - tps_pct
+  - iat_c
+  - ect_c
+  - lambda_measured
+  - lambda_valid
+  - injector_pw_ms
+  - battery_v
+  - maf_reference_g_s
+  - maf_physics_g_s
+  - fault_code
+  - calibration_allowed
+
+plant:
+  # Hidden VE surface: different shape AND peak location vs. ve_baseline in
+  # engine_m30b35.yaml (Section 6: "hidden VE surface different from the
+  # estimator VE surface"). Parametric (not table) form so "shape mismatch"
+  # is a single tunable rather than a second hand-authored table:
+  #   eta_v(rpm, map) = eta_max * f_rpm(rpm) * f_map(map)
+  ve_surface:
+    eta_max: 0.905
+    rpm_peak: 4100                 # vs. estimator's implicit peak ~4500-5500
+    rpm_width: 2600
+    map_ref_kpa: 101.325
+    map_exponent: 0.42
+  manifold:
+    volume_m3: 3.1e-3
+    time_constant_s: 0.09          # filling/emptying dynamics
+    pulsation_amplitude_kpa: 0.8
+    pulsation_freq_hz_per_rpm: 0.05
+  throttle:
+    actuator_time_constant_s: 0.12  # actual TPS lags commanded TPS
+  thermal:
+    iat_time_constant_s: 8.0
+    ect_time_constant_s: 120.0
+    ambient_c: 25.0
+    ect_operating_c: 92.0
+  injector:
+    q_injector_g_s_at_ref_dp: 4.35   # mass flow at reference fuel-pressure dp
+    ref_dp_kpa: 300.0
+    dead_time_ms: 0.85
+    saturation_pw_ms: 18.0
+    wall_film_time_constant_s: 0.15
+    wall_film_fraction: 0.08
+    # Hidden physical injector differs slightly from the nominal observer.
+    actual_flow_scale: 0.975
+    actual_dead_time_offset_ms: 0.04
+    observer:
+      flow_scale: 1.0
+      dead_time_offset_ms: 0.0
+    ecu_fuel_map:
+      airflow_scale: 0.98
+      airflow_bias_g_s: 0.4
+  lambda_path:
+    transport_delay_s: 0.35
+    sensor_delay_s: 0.08
+    controller_filter_s: 0.12
+    filter_settling_time_constants: 3.0
+  faults:
+    misfire_prob_per_s: 0.0
+    dropout_prob_per_s: 0.0008
+
+mismatch_levels:
+  # Section 6 "Mismatch design": >=3 declared levels including nominal.
+  # Primary family = VE-scale mismatch (per roadmap fallback guidance);
+  # secondary families included but flagged deferred/secondary.
+  - name: nominal
+    ve_scale: 1.00
+    ve_shape_shift: 0.0
+    map_gain: 1.00
+    map_offset_kpa: 0.0
+    manifold_tau_scale: 1.00
+    primary: true
+  - name: mismatch_low
+    ve_scale: 1.06
+    ve_shape_shift: 150.0
+    map_gain: 1.00
+    map_offset_kpa: 0.0
+    manifold_tau_scale: 1.00
+    primary: true
+  - name: mismatch_high
+    ve_scale: 0.90
+    ve_shape_shift: -300.0
+    map_gain: 1.00
+    map_offset_kpa: 0.0
+    manifold_tau_scale: 1.00
+    primary: true
+  - name: mismatch_map_gain
+    ve_scale: 1.00
+    ve_shape_shift: 0.0
+    map_gain: 1.04
+    map_offset_kpa: 1.5
+    manifold_tau_scale: 1.00
+    primary: false        # deferred secondary family (Section 6)
+  - name: mismatch_manifold_tau
+    ve_scale: 1.00
+    ve_shape_shift: 0.0
+    map_gain: 1.00
+    map_offset_kpa: 0.0
+    manifold_tau_scale: 1.8
+    primary: false        # deferred secondary family (Section 6)
+
+# Run catalog. n_runs is intentionally small; --quick mode in run_pipeline.py
+# further divides these by quick_divisor. Durations in seconds.
+scenarios:
+  nominal_train:
+    kind: nominal
+    mismatch: nominal
+    n_runs: 24
+    duration_s: 90
+    split_role: train
+  nominal_val:
+    kind: nominal
+    mismatch: nominal
+    n_runs: 6
+    duration_s: 90
+    split_role: val
+  nominal_test:
+    kind: nominal
+    mismatch: nominal
+    n_runs: 10
+    duration_s: 90
+    split_role: test
+  boundary:
+    kind: boundary
+    mismatch: nominal
+    n_runs: 10
+    duration_s: 60
+    split_role: test
+  corner:
+    kind: corner
+    mismatch: nominal
+    n_runs: 10
+    duration_s: 60
+    split_role: test
+  transient_unseen:
+    kind: transient
+    mismatch: nominal
+    n_runs: 12
+    duration_s: 120
+    split_role: test
+  mismatch_low:
+    kind: mismatch
+    mismatch: mismatch_low
+    n_runs: 10
+    duration_s: 90
+    split_role: test
+  mismatch_high:
+    kind: mismatch
+    mismatch: mismatch_high
+    n_runs: 10
+    duration_s: 90
+    split_role: test
+  mismatch_map_gain:
+    kind: mismatch
+    mismatch: mismatch_map_gain
+    n_runs: 6
+    duration_s: 90
+    split_role: test
+  mismatch_manifold_tau:
+    kind: mismatch
+    mismatch: mismatch_manifold_tau
+    n_runs: 6
+    duration_s: 90
+    split_role: test
+  calibration_shift_threshold:
+    kind: calibration_shift
+    mismatch: mismatch_low
+    n_runs: 8
+    duration_s: 240      # pre-drift / adaptation / holdout segments inside
+    split_role: threshold
+  calibration_shift_test:
+    kind: calibration_shift
+    mismatch: mismatch_high
+    n_runs: 12
+    duration_s: 240
+    split_role: test
+  low_information:
+    kind: low_information
+    mismatch: nominal
+    n_runs: 8
+    duration_s: 60
+    split_role: test
+
+quick_divisor: 4     # --quick shrinks n_runs and duration_s by this factor

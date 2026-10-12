@@ -1,0 +1,26 @@
+# Direct Pure-AI airflow estimator (Section 9).
+model:
+  name: pure_ai
+  # FROZEN feature list -- deployed estimator inputs only (Section 3).
+  # generate_dataset.py / train_pure_ai.py assert this list contains no
+  # hidden-reference or diagnostic-bus column.
+  features: [rpm, map_kpa, tps_pct, iat_c, ect_c]
+  target: maf_reference_g_s        # training-target generation only (Sec. 3)
+
+architecture:
+  hidden_layer_sizes: [16, 16, 8]   # compact MLP, frozen before final test
+  activation: relu
+  solver: adam
+  alpha: 1.0e-4                    # L2 regularization
+  learning_rate_init: 5.0e-3
+  max_iter: 400
+  early_stopping: true
+  n_iter_no_change: 15
+  validation_fraction: 0.15
+  batch_size: 256
+
+training:
+  seeds: [1, 2, 3, 4, 5]           # >= 5 AI seeds (Section 13 gate)
+  normalization: standard          # fit on training split only
+  train_split_roles: [train]
+  val_split_roles: [val]

@@ -1,0 +1,38 @@
+# Section 3 (Outputs) / Section 11 (E7) / Section 15: one declared
+# software-only legacy output profile (voltage) plus an alternate
+# frequency profile for reporting. SOFTWARE EMULATION ONLY -- not physical
+# ECU compatibility (README terminology section).
+
+voltage_profile:
+  name: "legacy_hot_film_voltage_v1"
+  kind: voltage
+  unit: volts
+  # Piecewise-linear breakpoints approximating a Bosch-style HFM airflow-
+  # to-voltage transfer characteristic (declared, not measured hardware).
+  airflow_breakpoints_g_s: [0, 2, 5, 10, 20, 40, 80, 120, 160, 200, 240]
+  voltage_breakpoints_v:   [0.50, 0.90, 1.20, 1.55, 1.95, 2.45, 3.05, 3.55, 3.95, 4.30, 4.55]
+  v_min: 0.20
+  v_max: 4.80
+  slew_rate_limit_v_per_s: 40.0
+  quantization_bits: 10          # simulated ADC read-back resolution
+  monotonic_required: true
+
+frequency_profile:
+  name: "legacy_hot_wire_frequency_v1"
+  kind: frequency
+  unit: hz
+  f_min_hz: 30.0
+  f_max_hz: 5000.0
+  # f = f_min + k * sqrt(airflow_g_s), classic hot-wire-style square-root profile
+  k_hz_per_sqrt_gs: 260.0
+  slew_rate_limit_hz_per_s: 8000.0
+  monotonic_required: true
+
+reporting:
+  primary_profile: voltage_profile
+  secondary_profile: frequency_profile
+  host_timing_disclaimer: >
+    All timing figures reported by this repository are measured on the
+    development host (Debian 13 / x86_64) and are explicitly HOST TIMING.
+    They are not MCU timing and must not be presented as STM32H7 or
+    ESP32-S3 measurements (reserved for Article 2).

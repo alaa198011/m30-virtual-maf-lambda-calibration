@@ -1,0 +1,28 @@
+{
+  "status": "FAIL",
+  "checks": {
+    "absolute_target": true,
+    "relative_improvement_over_C0": true,
+    "zero_bound_violations": true,
+    "lower_false_update_rate_than_C1": false
+  },
+  "observed": {
+    "C3_mean_holdout_nrmse": 0.007885292382581456,
+    "C0_mean_holdout_nrmse": 0.015215388692827098,
+    "relative_improvement_over_C0": 0.4817554423503637,
+    "C3_false_update_rate": 0.0,
+    "C1_false_update_rate": 0.0
+  },
+  "thresholds": {
+    "name": "post_mismatch_airflow_nrmse_final_test",
+    "metric": "nrmse",
+    "evaluated_on": "final_test_trajectory_untouched",
+    "absolute_target": 0.12,
+    "min_improvement_margin_over_C0": 0.1,
+    "require_zero_bound_violations": true,
+    "require_lower_false_update_rate_than": "C1",
+    "frozen_before_final_test": true,
+    "normalization_airflow_range_g_s": 260.0
+  },
+  "note": "Quick-mode reports are diagnostic; publication claims require full mode."
+}
