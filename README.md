@@ -126,5 +126,5 @@ See `CITATION.cff` (to be added with the release DOI).
 
 ## Contact
 
-Alaa A. Aldhalemi, University of Kufa, alaaa.aldhalemi@uokufa.edu.iq
+Alaa A. Aldhalemi, University of Kufa, alaaa.aldhalemi@uokufa.edu.iq, alaamh198012@gmail.com
 # m30-virtual-maf-lambda-calibration
