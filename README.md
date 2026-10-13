@@ -1,57 +1,80 @@
-# M30 Self-Calibrating Virtual MAF — Reference Implementation
+# Lambda-Guided Bounded Scale Adaptation for a Physics-Informed Virtual Mass-Airflow Estimator
 
-Reproducible Debian 13 / Python research codebase implementing the roadmap
-*"Identifiability-Aware, Lambda-Guided Calibration of a Physics-Informed
-Virtual Airflow Sensor"* (BMW M30B35 virtual case study, Article 1 scope).
+Reference implementation of the BMW M30B35 simulation study by Alaa A. Aldhalemi (University of Kufa).
 
-This repository is a **simulation-level feasibility study**. It does **not**
-establish physical engine accuracy, real-time MCU operation, physical ECU
-acceptance, universal engine compatibility, or real-world fuel-economy
-improvement. See `manuscript/limitations.md`.
+> **Scope.** This is a simulation-level feasibility study. It does not establish physical engine accuracy, real-time microcontroller operation, ECU compatibility, compatibility with other engines, or any real-world fuel-economy gain. Engine and hardware validation are future work.
 
-## What this is
+| | |
+|---|---|
+| Paper | *Lambda-Guided Bounded Scale Adaptation for a Physics-Informed Virtual Mass-Airflow Estimator: A BMW M30B35 Simulation Study* (submitted; link to be added) |
+| Release | `v1.0.0` |
+| Archive (DOI) | `<ZENODO-DOI>` |
+| Licence | `<LICENSE>` |
 
-A compact, physics-informed virtual airflow estimator (speed-density
-baseline + residual MLP) that adapts a **bounded global airflow scale**
-using conditioned wideband-lambda / injector-command feedback, gated by a
-**frozen scalar Fisher-information threshold** and accepted only after a
-**strictly subsequent, causal acceptance window**. It is compared against a
-Pure-AI direct estimator, an ungated/validity-only calibration ablation, an
-oracle (non-deployable) upper bound, and a matched one-state recursive
-least-squares (RLS) comparator.
+## What it is
+
+A virtual mass-airflow (MAF) estimator that combines a speed-density physics baseline with a small residual neural network (16-16-8, 513 parameters). One bounded global scale `s` in [0.80, 1.20] is adapted online from a delayed pseudo-reference built from wideband lambda and the injector command. Every update passes a four-stage supervisor:
+
+1. **A, validity:** simulator health mask and operating-condition checks.
+2. **B, excitation:** a frozen scalar Fisher-information gate.
+3. **C, bounded proposal:** deadband, per-update, absolute and rate limits.
+4. **D, causal acceptance:** a candidate is judged on a strictly later window and rolled back if it does not improve.
+
+Six policies are compared:
+
+| Policy | Description |
+|---|---|
+| C0 | Frozen estimator, no calibration |
+| C1 | Ungated adaptation |
+| C2 | Validity-only adaptation |
+| C3 | Full supervisor (A to D) |
+| C4 | Oracle using hidden airflow (not deployable) |
+| C5 | Matched one-state recursive least squares (RLS) |
+
+## Main results (full mode)
+
+| Result | Value |
+|---|---|
+| Post-shift holdout NRMSE, C0 to C3 | 0.0152 to 0.0079 (48.2 % lower) |
+| Original acceptance check (`results/acceptance_report.json`) | **FAIL**. C3 and C1 both had zero false accepted updates, so the strict "lower than C1" criterion cannot be met |
+
+C3 did not outperform the simpler adaptive policies on the original final test. See the paper for all tables and the statistical analysis.
+
+### Exploratory high-load extension
+
+Twelve high-load trajectories, seven unflagged ±15 % lambda-fault conditions, five frozen networks and policies C0 to C5 (2520 replays). The values in the paper come from a re-implementation that was run once from the protocol description.
+
+| | |
+|---|---|
+| Code | `src/highload_extension.py` |
+| Configuration | `configs/highload_extension.yaml` |
+| Outputs | `results/highload/` (`table14_reimpl.csv`, `paired_tests.csv`, `per_replay_metrics.csv`, `calibration_events.csv`, `integrity.json`) |
+
+```bash
+python3 src/highload_extension.py   # about 3 minutes on one core
+```
 
 ## Terminology
 
-- **Reference airflow**: hidden clean airflow from the virtual plant. Used
-  only for training-target generation and offline evaluation — **never** a
-  deployed estimator feature.
-- **Estimator inputs**: RPM, MAP, TPS, IAT, ECT (direct simulated electrical
-  signals only — no OBD-II / CAN diagnostic PIDs).
-- **Calibration feedback**: conditioned wideband-lambda + injector command,
-  turned into a delayed *pseudo-reference* (not a calibrated measurement).
-- **Deployed estimator**: the frozen model, excluding hidden reference
-  airflow.
-- **Legacy output emulation**: software-only voltage/frequency conversion.
-  Not physical ECU compatibility.
+- **Reference airflow:** hidden clean airflow from the virtual plant. Used only for training targets and offline evaluation, never as an estimator input.
+- **Estimator inputs:** RPM, MAP, TPS, IAT and ECT (simulated electrical signals; no OBD-II or CAN PIDs).
+- **Calibration feedback:** conditioned wideband lambda and injector command, turned into a delayed *pseudo-reference*. It is not a calibrated measurement.
+- **Legacy output emulation:** software-only voltage/frequency conversion, not ECU compatibility.
 
-Preferred phrase: **"reference-MAF-free field operation"**, not "operation
-without any reference" — field calibration still depends on conditioned
-feedback and declared fuel/engine assumptions.
+## Repository layout
 
-## Project layout
-
-```
-m30_self_calibrating_maf/
-├── configs/            declarative, frozen-before-final-test parameters
-├── src/                pipeline modules (plant, sensors, models, gate, eval)
-├── tests/              unit tests (units, leakage guard, gate, RLS, splits)
-├── data/               generated runs (raw/) and disjoint splits (splits/)
-├── models/             trained model artifacts (.joblib) per seed
-├── results/            CSV/JSON outputs + figures/ (required software outputs)
-└── manuscript/         article scaffolding, limitations, Article 2 handoff
+```text
+configs/   frozen parameters (engine, plant, sensors, models, calibration, experiments)
+src/       plant, sensors, fuel/lambda path, models, gates, calibration, evaluation
+tests/     unit and integration tests
+data/      generated runs (raw/) and disjoint splits (splits/)
+models/    trained model files (pure-AI and residual-AI, five seeds each)
+results/   CSV/JSON outputs, figures/, and highload/
 ```
 
-## Quickstart (Debian 13)
+The raw simulation data and files over 50 MB (for example `results/parameter_trajectory.csv`) are archived on Zenodo, not in git.
+
+## Quickstart (Debian 13, Python 3.13)
 
 ```bash
 python3 -m venv .venv
@@ -59,83 +82,48 @@ source .venv/bin/activate
 pip install -r requirements-lock.txt
 pip install -e .
 
-make pipeline-quick     # smoke-sized end-to-end run (minutes)
-make pipeline           # full study-sized run per configs/*.yaml (slow)
-make test                # unit tests
+make test              # unit and integration tests
+make pipeline-quick    # smoke run (minutes); software check only
+make pipeline          # full study (slow)
 ```
 
-`make pipeline-quick` and `make pipeline` both call
-`src/run_pipeline.py`; the `--quick` flag shrinks run counts, trajectory
-durations and training epochs so the *entire* pipeline (generate → split → train → calibrate
-→ evaluate → statistics → figures) can be smoke-tested in a few minutes
-without changing calibration windows, thresholds, bounds, or endpoints.
+`--mode quick` shrinks run counts, durations and training epochs. It never changes thresholds, bounds, windows or endpoints. **Do not quote quick-mode results.** The results archived with this repository are from full mode (`results/environment.json`, `mode: full`).
 
-This repository ships with `data/`, `models/`, and `results/` already
-populated from one such `--mode quick` run (~20 seconds on a single core),
-so `results/figures/` and every CSV in `README.md#required-software-outputs`
-can be inspected immediately without first setting up a virtual
-environment. Run `make clean` before `make pipeline` to regenerate
-everything at full, roadmap-declared scale.
+`make pipeline` refuses to overwrite existing full-mode results unless `--allow-refreeze` is passed. `make clean` deletes generated data, models and results, so run it only on a copy.
 
 ## Pipeline stages
 
-1. `generate_dataset.py` — independent hidden plant (`virtual_engine.py`,
-   structurally different from the estimator's speed-density baseline) +
-   sensor corruption (`sensor_models.py`) + fuel/lambda path
-   (`fuel_lambda_path.py`) → per-run parquet files under `data/raw/`.
-2. `prepare_splits.py` — disjoint train/validation/threshold-selection/
-   final-test run IDs, scalers fit on training data only, checksums,
-   `dataset_manifest.json`.
-3. `train_pure_ai.py` / `train_residual_ai.py` — 5-seed compact MLP
-   (16-16-8) training with a frozen, explicit, leakage-checked feature list.
-4. `scalar_fisher_gate.py` + `calibration_gate.py` + `online_calibration.py`
-   + `classical_rls.py` — the four-stage calibration gate (validity → scalar
-   Fisher information → bounded proposal → causal accept/rollback) run in
-   modes C0–C5 (see `configs/calibration.yaml`).
-5. `evaluate.py` + `statistical_analysis.py` — required CSV outputs, paired
-   run-level statistics (Wilcoxon/paired-t + Holm correction).
-6. `make_publication_figures.py` — the 9 essential figures, each built from
-   a stored CSV/parquet file saved beside the figure.
+1. `generate_dataset.py`: hidden plant, sensor corruption and fuel/lambda path, written as per-run files.
+2. `prepare_splits.py`: disjoint train, validation, threshold-selection and final-test runs, with checksums.
+3. `train_pure_ai.py`, `train_residual_ai.py`: five seeds each, with leakage-checked feature lists.
+4. `scalar_fisher_gate.py`, `calibration_gate.py`, `online_calibration.py`, `classical_rls.py`: policies C0 to C5.
+5. `evaluate.py`, `statistical_analysis.py`: metrics and paired run-level tests with Holm correction.
+6. `make_publication_figures.py`: figures, each saved with its data CSV.
 
-## Required software outputs (Section 14)
+## Outputs in `results/`
 
-Written under `results/`: `environment.json`, `dataset_manifest.json`,
-`test_metrics_all_models.csv`, `test_predictions.parquet`,
-`transient_state_metrics.csv`, `calibration_events.csv`,
-`scalar_fisher_trace.csv`, `calibration_data_efficiency.csv`,
-`classical_comparator_metrics.csv`, `mismatch_crossover.csv`,
-`drift_recovery_metrics.csv`, `information_gate_report.csv`,
-`legacy_output_metrics.csv`, `parameter_trajectory.csv`,
-`acceptance_report.json`, `statistical_tests.csv`.
+| File | Content |
+|---|---|
+| `environment.json`, `dataset_manifest.json` | Run environment and dataset checksums |
+| `test_metrics_all_models.csv`, `per_run_model_metrics.csv`, `test_predictions.parquet` | Estimator accuracy |
+| `transient_state_metrics.csv`, `boundary_corner_metrics.csv`, `mismatch_crossover.csv` | Transient, boundary and mismatch results |
+| `calibration_events.csv`, `parameter_trajectory.csv`, `drift_recovery_metrics.csv`, `calibration_data_efficiency.csv`, `classical_comparator_metrics.csv` | Calibration policies |
+| `scalar_fisher_trace.csv`, `information_gate_report.csv` | Excitation gate |
+| `legacy_output_metrics.csv` | Software output-mapping check |
+| `statistical_tests.csv`, `acceptance_report.json` | Statistics and predeclared acceptance check |
+| `figures/` | Figures with their data files |
+| `highload/` | Exploratory high-load extension |
 
-## Acceptance gates before publication (Section 13)
+## Reproducibility notes
 
-`tests/test_acceptance_gates.py` checks the mechanical/leakage-safety
-subset of Section 13 automatically (disjoint run IDs, no hidden-reference
-feature leakage, scalers fit on train only, bounded parameters, logged
-gate decisions with reasons, five AI seeds, host-timing labeling). The
-scientific subset (frozen thresholds, predeclared NRMSE target and margin,
-false-update definition) is evaluated explicitly in
-`results/acceptance_report.json`. Configurations are treated as frozen
-inputs: **do not edit thresholds after inspecting final-test results** —
-`run_pipeline.py --full` refuses to re-run the final-test stage once
-`results/test_metrics_all_models.csv` exists unless `--allow-refreeze` is
-passed explicitly, to make post-hoc threshold changes an auditable,
-deliberate act rather than an accident.
+- Recorded environment: Debian 13.7, Python 3.13.5, packages as in `requirements-lock.txt`.
+- The archived full run did not record a git revision; the released tag identifies the code snapshot.
+- Trained models were pickled with scikit-learn 1.9.1. Load them with the locked version.
 
-The included results are a **quick-mode verification run**, not final article
-evidence. A failed quick-mode acceptance item must be reported rather than
-hidden or tuned using final-test data. Run full mode on the declared Debian 13
-host before drawing publication conclusions.
+## Citation
 
-## What Article 1 may and may not claim
+See `CITATION.cff` (to be added with the release DOI).
 
-See `manuscript/claims.md` for the frozen permitted/excluded claim lists
-carried over verbatim from the roadmap (Section 1).
+## Contact
 
-## Article 2 handoff
-
-See `manuscript/article2_handoff.md` for the freeze checklist (features,
-architecture, weights, I/O contract, calibration parameterization, RLS
-definition, legacy-output profile, PIL test vectors, learning budget,
-configs/checksums) required before hardware porting.
+Alaa A. Aldhalemi, University of Kufa, alaaa.aldhalemi@uokufa.edu.iq

@@ -1,0 +1,30 @@
+# Exploratory high-load adverse-calibration extension (manuscript Sect. 2.3 / 3.7, Table 14, S9).
+# RE-IMPLEMENTATION written from the manuscript description on 2026-10-12.
+# It is NOT the archived run that produced the published Table 14.
+protocol_id: highload_extension_reimpl_v1
+trajectories:
+  n: 12
+  seed_first: 2026100400          # seeds 2026100400 ... 2026100411
+  duration_s: 240
+  segments_s: {pre_drift: [0, 80], adaptation: [80, 160], holdout: [160, 240]}
+  rpm_command_range: [3400, 4400]
+  tps_command_range_pct: [60, 78]
+  plant_mismatch_after_80s: mismatch_high      # high-severity VE mismatch from data_generation.yaml
+  disable_random_dropout_stuck_misfire: true
+network_seeds: [1, 2, 3, 4, 5]
+policies: [C0, C1, C2, C3, C4, C5]
+fault_gain: 0.15                  # unflagged +-15% gain on MEASURED lambda only
+conditions:
+  healthy:            {gain: 1.00, schedule: none}
+  brief_plus:         {gain: 1.15, schedule: window, start_s: 80, end_s: 88}
+  brief_minus:        {gain: 0.85, schedule: window, start_s: 80, end_s: 88}
+  recurring_aligned:  {gain: 1.15, schedule: recurring, on_s: 8, period_s: 16, phase: aligned_to_proposal_windows, start_s: 80, end_s: 160}
+  recurring_random:   {gain: 1.15, schedule: recurring, on_s: 8, period_s: 16, phase: random_per_run, start_s: 80, end_s: 160}
+  persistent_plus:    {gain: 1.15, schedule: window, start_s: 80, end_s: 160}
+  persistent_minus:   {gain: 0.85, schedule: window, start_s: 80, end_s: 160}
+statistics:
+  test: exact_sign_flip_two_sided       # on 12 run-level differences (5 seeds averaged within run)
+  comparisons: [[C3, C1], [C3, C2], [C3, C5]]   # in every condition -> 21
+  correction: holm
+  bootstrap: {resamples: 5000, seed: 0, ci: 0.95}
+primary_endpoint: adaptation_rmse_g_s   # committed estimate vs UNFILTERED hidden airflow over 80 s adaptation segment
