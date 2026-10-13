@@ -8,8 +8,7 @@ Reference implementation of the BMW M30B35 simulation study by Alaa A. Aldhalemi
 |---|---|
 | Paper | *Lambda-Guided Bounded Scale Adaptation for a Physics-Informed Virtual Mass-Airflow Estimator: A BMW M30B35 Simulation Study* (submitted; link to be added) |
 | Release | `v1.0.0` |
-| Archive (DOI) | `<ZENODO-DOI>` |
-| Licence | `<LICENSE>` |
+
 
 ## What it is
 
