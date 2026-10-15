@@ -27,7 +27,7 @@ Six policies are compared:
 | C1 | Ungated adaptation |
 | C2 | Validity-only adaptation |
 | C3 | Full supervisor (A to D) |
-| C4 | Oracle using hidden airflow (not deployable) |
+| C4 | Ground-truth airflow benchmark (simulation only) |
 | C5 | Matched one-state recursive least squares (RLS) |
 
 ## Main results (full mode)
